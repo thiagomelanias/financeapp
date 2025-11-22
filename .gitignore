@@ -1,1 +1,17 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+.expo/
+.expo-shared/
+web-build/
 build/
+
+# Expo
+android/
+ios/
+*.jks
+
+# MacOS
+.DS_Store
