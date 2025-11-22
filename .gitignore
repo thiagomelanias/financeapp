@@ -8,10 +8,14 @@ dist/
 web-build/
 build/
 
-# Expo
+# Expo native builds
 android/
 ios/
 *.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
 
-# MacOS
+# macOS
 .DS_Store
