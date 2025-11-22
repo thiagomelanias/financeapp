@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "FinanceApp",
+    "slug": "financeapp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "assetBundlePatterns": ["**/*"],
+    "platforms": ["ios", "android", "web"]
+  }
+}

@@ -1,23 +1,19 @@
 workflows:
-  financeapp_workflow:
-    name: FinanceApp Android build
+  expo-web:
+    name: FinanceApp Expo Web
     max_build_duration: 60
-    instance_type: mac_mini_m2
     environment:
-      flutter: stable
-      xcode: latest
+      node: 20.11.1
+    cache:
+      cache_paths:
+        - ~/.npm
+        - $CM_BUILD_DIR/node_modules
     scripts:
-      - name: Ensure Flutter project structure
+      - name: Instalar dependências
         script: |
-          if [ ! -f "pubspec.yaml" ]; then
-            echo "pubspec.yaml not found" >&2
-            exit 1
-          fi
-          # This will (re)create missing platform folders without deleting your lib/
-          flutter create . --platforms=android,ios,web
-      - name: Get dependencies
-        script: flutter pub get
-      - name: Build Android APK
-        script: flutter build apk --release
+          npm install
+      - name: Gerar build web com Expo
+        script: |
+          npx expo export --platform web --output-dir dist
     artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
+      - dist/**
