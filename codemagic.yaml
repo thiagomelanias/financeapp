@@ -1,0 +1,4 @@
+workflows:
+  release:
+    scripts:
+      - flutter pub get
