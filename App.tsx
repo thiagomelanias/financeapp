@@ -28,7 +28,6 @@ const App: React.FC = () => {
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<EntryType>("expense");
   const [category, setCategory] = useState("Alimentação");
-  const [error, setError] = useState("");
 
   // Load saved data on first render (web localStorage)
   useEffect(() => {
@@ -63,26 +62,12 @@ const App: React.FC = () => {
   }, [entries]);
 
   const handleSave = () => {
-    const normalizedAmount = (amount || "")
-      .replace("R$", "")
-      .replace(/\s/g, "")
-      .replace(/\./g, "")
-      .replace(",", ".")
-      .trim();
-
-    const value = Number(normalizedAmount);
-
-    if (!description.trim()) {
-      setError("Informe uma descrição para o lançamento.");
+    const value = Number(
+      (amount || "").replace(/\./g, "").replace(",", ".").trim()
+    );
+    if (!description.trim() || !amount.trim() || isNaN(value)) {
       return;
     }
-
-    if (!amount.trim() || isNaN(value) || value <= 0) {
-      setError("Informe um valor válido maior que zero.");
-      return;
-    }
-
-    setError("");
 
     const entry: FinanceEntry = {
       id: String(Date.now()),
@@ -96,6 +81,23 @@ const App: React.FC = () => {
     setEntries((prev) => [entry, ...prev]);
     setDescription("");
     setAmount("");
+
+  // Mask currency input
+  const handleAmountChange = (text: string) => {
+    const digits = text.replace(/\D/g, "");
+    const number = parseFloat(digits) / 100;
+    if (isNaN(number)) {
+      setAmount("");
+      return;
+    }
+    const formatted = number.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+    });
+    setAmount(formatted);
+  };
+
     setType("expense");
     setCategory("Alimentação");
   };
@@ -216,10 +218,7 @@ const App: React.FC = () => {
                 placeholder="Descrição (ex: Uber, mercado, plantão)"
                 placeholderTextColor="#6b7280"
                 value={description}
-                onChangeText={(text) => {
-                  setDescription(text);
-                  if (error) setError("");
-                }}
+                onChangeText={setDescription}
               />
             </View>
 
@@ -232,10 +231,7 @@ const App: React.FC = () => {
                   placeholderTextColor="#6b7280"
                   keyboardType="decimal-pad"
                   value={amount}
-                  onChangeText={(text) => {
-                    setAmount(text);
-                    if (error) setError("");
-                  }}
+                  onChangeText={handleAmountChange}
                 />
               </View>
               <View style={[styles.fieldGroup, styles.rowHalf]}>
@@ -247,15 +243,10 @@ const App: React.FC = () => {
                   }
                   placeholderTextColor="#6b7280"
                   value={category}
-                  onChangeText={(text) => {
-                    setCategory(text);
-                    if (error) setError("");
-                  }}
+                  onChangeText={setCategory}
                 />
               </View>
             </View>
-
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <View style={styles.toggleRow}>
               <TouchableOpacity
@@ -263,10 +254,7 @@ const App: React.FC = () => {
                   styles.toggleButton,
                   type === "expense" && styles.toggleButtonActiveExpense,
                 ]}
-                onPress={() => {
-                  setType("expense");
-                  if (error) setError("");
-                }}
+                onPress={() => setType("expense")}
               >
                 <Text
                   style={[
@@ -282,10 +270,7 @@ const App: React.FC = () => {
                   styles.toggleButton,
                   type === "income" && styles.toggleButtonActiveIncome,
                 ]}
-                onPress={() => {
-                  setType("income");
-                  if (error) setError("");
-                }}
+                onPress={() => setType("income")}
               >
                 <Text
                   style={[
@@ -635,11 +620,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 11,
     color: "#6b7280",
-  },
-  errorText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#f97373",
   },
 });
 
