@@ -1,111 +1,181 @@
-import React, { useEffect, useState } from "react";
+
+import React, { useMemo, useState } from "react";
 import {
   SafeAreaView,
+  ScrollView,
   View,
   Text,
   TextInput,
   TouchableOpacity,
-  ScrollView,
   StyleSheet,
+  useColorScheme,
 } from "react-native";
 
-type EntryType = "income" | "expense";
+type TransactionType = "income" | "expense";
 
-interface FinanceEntry {
+interface Transaction {
   id: string;
   description: string;
   amount: number;
-  type: EntryType;
   category: string;
-  createdAt: string;
+  type: TransactionType;
+  date: string; // ISO-like string
 }
 
-const STORAGE_KEY = "financeapp_entries_v1";
+interface Theme {
+  background: string;
+  card: string;
+  cardSoft: string;
+  primary: string;
+  primarySoft: string;
+  primaryText: string;
+  text: string;
+  textSoft: string;
+  border: string;
+  danger: string;
+  success: string;
+  inputBackground: string;
+  incomePill: string;
+  expensePill: string;
+}
 
-const App: React.FC = () => {
-  const [entries, setEntries] = useState<FinanceEntry[]>([]);
+const darkTheme: Theme = {
+  background: "#020617",
+  card: "#020C24",
+  cardSoft: "#061426",
+  primary: "#2563EB",
+  primarySoft: "#1D4ED8",
+  primaryText: "#FFFFFF",
+  text: "#E5E7EB",
+  textSoft: "#9CA3AF",
+  border: "#1F2937",
+  danger: "#F87171",
+  success: "#4ADE80",
+  inputBackground: "#020617",
+  incomePill: "#0F766E",
+  expensePill: "#7F1D1D",
+};
+
+const lightTheme: Theme = {
+  background: "#F3F4F6",
+  card: "#FFFFFF",
+  cardSoft: "#F9FAFB",
+  primary: "#2563EB",
+  primarySoft: "#1D4ED8",
+  primaryText: "#FFFFFF",
+  text: "#111827",
+  textSoft: "#6B7280",
+  border: "#E5E7EB",
+  danger: "#DC2626",
+  success: "#16A34A",
+  inputBackground: "#F9FAFB",
+  incomePill: "#16A34A",
+  expensePill: "#DC2626",
+};
+
+export default function App() {
+  const colorScheme = useColorScheme();
+  const theme = colorScheme === "light" ? lightTheme : darkTheme;
+
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const [selectedType, setSelectedType] = useState<TransactionType>("expense");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [type, setType] = useState<EntryType>("expense");
   const [category, setCategory] = useState("Alimentação");
 
-  // Load saved data on first render (web localStorage)
-  useEffect(() => {
-    try {
-      if (typeof window === "undefined") return;
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        setEntries(
-          parsed
-            .filter((e) => typeof e.amount === "number" && !!e.description)
-            .map((e) => ({
-              ...e,
-              createdAt: e.createdAt || new Date().toISOString(),
-            }))
-        );
-      }
-    } catch (error) {
-      console.warn("Erro ao carregar dados locais:", error);
-    }
-  }, []);
+  const [transactions, setTransactions] = useState<Transaction[]>([
+    {
+      id: "1",
+      description: "Salário",
+      amount: 8500,
+      category: "Renda fixa",
+      type: "income",
+      date: "2025-11-23",
+    },
+    {
+      id: "2",
+      description: "Aluguel",
+      amount: 2200,
+      category: "Moradia",
+      type: "expense",
+      date: "2025-11-22",
+    },
+    {
+      id: "3",
+      description: "Supermercado",
+      amount: 680,
+      category: "Alimentação",
+      type: "expense",
+      date: "2025-11-22",
+    },
+  ]);
 
-  // Persist data whenever entries change
-  useEffect(() => {
-    try {
-      if (typeof window === "undefined") return;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-    } catch (error) {
-      console.warn("Erro ao salvar dados locais:", error);
-    }
-  }, [entries]);
+  const totalIncome = transactions
+    .filter((t) => t.type === "income")
+    .reduce((sum, t) => sum + t.amount, 0);
 
-  const handleSave = () => {
-    const value = Number(
-      (amount || "").replace(/\./g, "").replace(",", ".").trim()
+  const totalExpense = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  const consolidated = totalIncome - totalExpense;
+
+  const expenseTransactions = transactions.filter((t) => t.type === "expense");
+  const averageExpense =
+    expenseTransactions.length === 0
+      ? 0
+      : expenseTransactions.reduce((sum, t) => sum + t.amount, 0) /
+        expenseTransactions.length;
+
+  const currentMonthLabel = "novembro de 2025";
+
+  function formatCurrency(value: number): string {
+    return value.toLocaleString("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      minimumFractionDigits: 2,
+    });
+  }
+
+  function formatCurrencyInput(raw: string): string {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+    const number = parseFloat(digits) / 100;
+    if (Number.isNaN(number)) return "";
+    return `R$ ${number.toFixed(2).replace(".", ",")}`;
+  }
+
+handleAddTransaction() {
+    const numericAmount = parseFloat(
+      amount.replace(",", ".").replace("R$", "").trim()
     );
-    if (!description.trim() || !amount.trim() || isNaN(value)) {
+
+    if (!description || isNaN(numericAmount) || numericAmount <= 0) {
+      // No alerts to avoid issues on web; could add better validation UI later
       return;
     }
 
-    const entry: FinanceEntry = {
+    const newTransaction: Transaction = {
       id: String(Date.now()),
       description: description.trim(),
-      amount: value,
-      type,
-      category: category.trim() || (type === "income" ? "Receita" : "Despesa"),
-      createdAt: new Date().toISOString(),
+      amount: numericAmount,
+      category: category.trim() || "Outros",
+      type: selectedType,
+      date: new Date().toISOString().split("T")[0],
     };
 
-    setEntries((prev) => [entry, ...prev]);
+    setTransactions((prev) => [newTransaction, ...prev]);
     setDescription("");
     setAmount("");
-    setType("expense");
-    setCategory("Alimentação");
-  };
-
-  const incomes = entries.filter((e) => e.type === "income");
-  const expenses = entries.filter((e) => e.type === "expense");
-
-  const totalIncome = incomes.reduce((sum, e) => sum + e.amount, 0);
-  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
-  const balance = totalIncome - totalExpense;
-
-  const formatCurrency = (value: number) =>
-    `R$ ${value.toFixed(2).replace(".", ",")}`;
-
-  const currentMonthLabel = new Date().toLocaleDateString("pt-BR", {
-    month: "long",
-    year: "numeric",
-  });
-
-  const averageExpense =
-    expenses.length === 0 ? 0 : totalExpense / expenses.length;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Header */}
         <View style={styles.headerRow}>
           <View>
@@ -114,496 +184,432 @@ const App: React.FC = () => {
               Visão clara das suas finanças mensais.
             </Text>
           </View>
-          <View style={styles.monthBadge}>
-            <Text style={styles.monthBadgeLabel}>Mês atual</Text>
-            <Text style={styles.monthBadgeText}>{currentMonthLabel}</Text>
+
+          <View style={styles.headerRight}>
+            <Text style={styles.chipLabel}>Mês atual</Text>
+            <Text style={styles.chipValue}>{currentMonthLabel}</Text>
           </View>
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Consolidated balance card */}
-          <View style={styles.cardLarge}>
-            <View style={styles.cardHeaderRow}>
-              <Text style={styles.cardTitle}>Saldo consolidado</Text>
-              <Text
-                style={[
-                  styles.balanceValue,
-                  balance >= 0 ? styles.balancePositive : styles.balanceNegative,
-                ]}
-              >
-                {formatCurrency(balance)}
+        {/* Consolidated balance */}
+        <View style={styles.cardHighlighted}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>Saldo consolidado</Text>
+            <Text style={styles.cardHighlightValue}>
+              {formatCurrency(consolidated)}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            {/* Income */}
+            <View style={styles.column}>
+              <View style={styles.pillRow}>
+                <View style={[styles.statusDot, { backgroundColor: theme.success }]} />
+                <Text style={styles.pillLabel}>Receitas</Text>
+              </View>
+              <Text style={styles.valuePositive}>
+                {formatCurrency(totalIncome)}
               </Text>
             </View>
 
-            <View style={styles.row}>
-              <View style={styles.subCard}>
-                <View style={styles.dotRow}>
-                  <View style={[styles.statusDot, styles.incomeDot]} />
-                  <Text style={styles.subCardTitle}>Receitas</Text>
-                </View>
-                <Text style={[styles.subCardValue, styles.incomeText]}>
-                  {formatCurrency(totalIncome)}
-                </Text>
+            {/* Expense */}
+            <View style={styles.column}>
+              <View style={styles.pillRow}>
+                <View style={[styles.statusDot, { backgroundColor: theme.danger }]} />
+                <Text style={styles.pillLabel}>Despesas</Text>
               </View>
-
-              <View style={styles.subCard}>
-                <View style={styles.dotRow}>
-                  <View style={[styles.statusDot, styles.expenseDot]} />
-                  <Text style={styles.subCardTitle}>Despesas</Text>
-                </View>
-                <Text style={[styles.subCardValue, styles.expenseText]}>
-                  {formatCurrency(totalExpense)}
-                </Text>
-              </View>
+              <Text style={styles.valueNegative}>
+                {formatCurrency(totalExpense)}
+              </Text>
             </View>
+          </View>
+        </View>
+
+        {/* Secondary metrics */}
+        <View style={styles.row}>
+          <View style={styles.cardSmall}>
+            <Text style={styles.cardSmallLabel}>Entrada líquida</Text>
+            <Text style={styles.cardSmallValue}>
+              {formatCurrency(consolidated)}
+            </Text>
+            <Text style={styles.cardSmallCaption}>Resultado do mês</Text>
+          </View>
+
+          <View style={styles.cardSmall}>
+            <Text style={styles.cardSmallLabel}>Gasto médio / despesa</Text>
+            <Text style={styles.cardSmallValue}>
+              {formatCurrency(averageExpense)}
+            </Text>
+            <Text style={styles.cardSmallCaption}>
+              Média por lançamento de despesa.
+            </Text>
+          </View>
+        </View>
+
+        {/* New transaction */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Novo lançamento</Text>
+          <Text style={styles.sectionSubtitle}>
+            Registre rapidamente suas despesas e receitas do dia.
+          </Text>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              placeholder="Descrição (ex: Uber, mercado, plantão)"
+              placeholderTextColor={theme.textSoft}
+              style={styles.input}
+              value={description}
+              onChangeText={setDescription}
+            />
 
             <View style={styles.row}>
-              <View style={styles.infoCard}>
-                <Text style={styles.infoLabel}>Entrada líquida</Text>
-                <Text
-                  style={[
-                    styles.infoValue,
-                    balance >= 0 ? styles.incomeText : styles.expenseText,
-                  ]}
-                >
-                  {formatCurrency(balance)}
-                </Text>
-                <Text style={styles.infoHint}>Resultado do mês</Text>
-              </View>
-
-              <View style={styles.infoCard}>
-                <Text style={styles.infoLabel}>Gasto médio / despesa</Text>
-                <Text style={styles.infoValue}>
-                  {formatCurrency(averageExpense)}
-                </Text>
-                <Text style={styles.infoHint}>
-                  Média por lançamento de despesa.
-                </Text>
-              </View>
+              <TextInput
+                placeholder="Valor (R$)"
+                placeholderTextColor={theme.textSoft}
+                keyboardType="numeric"
+                style={[styles.input, styles.inputHalf]}
+                value={amount}
+                onChangeText={(text) => setAmount(formatCurrencyInput(text))}
+              />
+              <TextInput
+                placeholder="Categoria"
+                placeholderTextColor={theme.textSoft}
+                style={[styles.input, styles.inputHalf]}
+                value={category}
+                onChangeText={setCategory}
+              />
             </View>
           </View>
 
-          {/* New entry */}
-          <View style={styles.cardLarge}>
-            <Text style={styles.sectionTitle}>Novo lançamento</Text>
-            <Text style={styles.sectionSubtitle}>
-              Registre rapidamente suas despesas e receitas do dia.
-            </Text>
-
-            <View style={styles.fieldGroup}>
-              <Text style={styles.inputLabel}>Descrição</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Descrição (ex: Uber, mercado, plantão)"
-                placeholderTextColor="#6b7280"
-                value={description}
-                onChangeText={setDescription}
-              />
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.fieldGroup, styles.rowHalf]}>
-                <Text style={styles.inputLabel}>Valor (R$)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="0,00"
-                  placeholderTextColor="#6b7280"
-                  keyboardType="decimal-pad"
-                  value={amount}
-                  onChangeText={setAmount}
-                />
-              </View>
-              <View style={[styles.fieldGroup, styles.rowHalf]}>
-                <Text style={styles.inputLabel}>Categoria</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={
-                    type === "income" ? "Renda fixa, extra..." : "Alimentação..."
-                  }
-                  placeholderTextColor="#6b7280"
-                  value={category}
-                  onChangeText={setCategory}
-                />
-              </View>
-            </View>
-
-            <View style={styles.toggleRow}>
-              <TouchableOpacity
+          {/* Toggle income / expense */}
+          <View style={styles.toggleRow}>
+            <TouchableOpacity
+              onPress={() => setSelectedType("expense")}
+              style={[
+                styles.toggleButton,
+                selectedType === "expense" && styles.toggleButtonActiveExpense,
+              ]}
+            >
+              <Text
                 style={[
-                  styles.toggleButton,
-                  type === "expense" && styles.toggleButtonActiveExpense,
+                  styles.toggleText,
+                  selectedType === "expense" && styles.toggleTextActive,
                 ]}
-                onPress={() => setType("expense")}
               >
-                <Text
-                  style={[
-                    styles.toggleButtonText,
-                    type === "expense" && styles.toggleButtonTextActive,
-                  ]}
-                >
-                  Despesa
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.toggleButton,
-                  type === "income" && styles.toggleButtonActiveIncome,
-                ]}
-                onPress={() => setType("income")}
-              >
-                <Text
-                  style={[
-                    styles.toggleButtonText,
-                    type === "income" && styles.toggleButtonTextActive,
-                  ]}
-                >
-                  Receita
-                </Text>
-              </TouchableOpacity>
-            </View>
+                Despesa
+              </Text>
+            </TouchableOpacity>
 
-            <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-              <Text style={styles.primaryButtonText}>Salvar lançamento</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedType("income")}
+              style={[
+                styles.toggleButton,
+                selectedType === "income" && styles.toggleButtonActiveIncome,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  selectedType === "income" && styles.toggleTextActive,
+                ]}
+              >
+                Receita
+              </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Last entries */}
-          <View style={styles.cardLarge}>
-            <Text style={styles.sectionTitle}>Últimos lançamentos</Text>
-            <Text style={styles.sectionSubtitle}>
-              Acompanhe onde seu dinheiro está indo.
-            </Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleAddTransaction}>
+            <Text style={styles.primaryButtonText}>Salvar lançamento</Text>
+          </TouchableOpacity>
+        </View>
 
-            {entries.length === 0 ? (
-              <Text style={styles.emptyText}>
-                Você ainda não registrou nenhum lançamento.
-              </Text>
-            ) : (
-              entries.map((entry) => (
-                <View key={entry.id} style={styles.entryRow}>
-                  <View style={styles.entryMain}>
-                    <Text style={styles.entryDescription}>
-                      {entry.description}
-                    </Text>
-                    <View style={styles.entryMetaRow}>
-                      <Text style={styles.entryCategory}>{entry.category}</Text>
-                      <Text style={styles.entryType}>
-                        {entry.type === "income" ? "Receita" : "Despesa"}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.entryAmountBlock}>
-                    <Text
-                      style={[
-                        styles.entryAmount,
-                        entry.type === "income"
-                          ? styles.incomeText
-                          : styles.expenseText,
-                      ]}
-                    >
-                      {formatCurrency(entry.amount)}
-                    </Text>
-                    <Text style={styles.entryDate}>
-                      {new Date(entry.createdAt).toLocaleDateString("pt-BR")}
-                    </Text>
-                  </View>
-                </View>
-              ))
-            )}
-          </View>
-        </ScrollView>
-      </View>
+        {/* Recent transactions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Últimos lançamentos</Text>
+          <Text style={styles.sectionSubtitle}>
+            Acompanhe onde seu dinheiro está indo.
+          </Text>
+
+          {transactions.map((transaction) => (
+            <View key={transaction.id} style={styles.transactionRow}>
+              <View style={styles.transactionLeft}>
+                <Text style={styles.transactionTitle}>
+                  {transaction.description}
+                </Text>
+                <Text style={styles.transactionMeta}>
+                  {transaction.category} •{" "}
+                  {transaction.type === "income" ? "Receita" : "Despesa"}
+                </Text>
+              </View>
+              <View style={styles.transactionRight}>
+                <Text
+                  style={
+                    transaction.type === "income"
+                      ? styles.transactionAmountPositive
+                      : styles.transactionAmountNegative
+                  }
+                >
+                  {formatCurrency(transaction.amount)}
+                </Text>
+                <Text style={styles.transactionDate}>{transaction.date}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#020617",
-  },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 16,
-    backgroundColor: "#020617",
-  },
-  scroll: {
-    marginTop: 16,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-    gap: 16,
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  appTitle: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#f9fafb",
-  },
-  appSubtitle: {
-    marginTop: 4,
-    fontSize: 14,
-    color: "#9ca3af",
-  },
-  monthBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#1d4ed8",
-    backgroundColor: "#020617",
-    alignItems: "flex-end",
-  },
-  monthBadgeLabel: {
-    fontSize: 11,
-    color: "#9ca3af",
-  },
-  monthBadgeText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#e5e7eb",
-    textTransform: "lowercase",
-  },
-  cardLarge: {
-    borderRadius: 24,
-    padding: 18,
-    backgroundColor: "#020617",
-    borderWidth: 1,
-    borderColor: "#111827",
-    shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#e5e7eb",
-  },
-  balanceValue: {
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  balancePositive: {
-    color: "#22c55e",
-  },
-  balanceNegative: {
-    color: "#f97373",
-  },
-  row: {
-    flexDirection: "row",
-    gap: 12,
-    marginTop: 8,
-  },
-  subCard: {
-    flex: 1,
-    borderRadius: 18,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    backgroundColor: "#020617",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-  },
-  dotRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 6,
-    gap: 6,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 999,
-  },
-  incomeDot: {
-    backgroundColor: "#22c55e",
-  },
-  expenseDot: {
-    backgroundColor: "#f97373",
-  },
-  subCardTitle: {
-    fontSize: 12,
-    color: "#9ca3af",
-  },
-  subCardValue: {
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  incomeText: {
-    color: "#22c55e",
-  },
-  expenseText: {
-    color: "#f97373",
-  },
-  infoCard: {
-    flex: 1,
-    marginTop: 10,
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: "#020617",
-    borderWidth: 1,
-    borderColor: "#1f2937",
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
-  },
-  infoValue: {
-    marginTop: 4,
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#e5e7eb",
-  },
-  infoHint: {
-    marginTop: 2,
-    fontSize: 11,
-    color: "#6b7280",
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#e5e7eb",
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: "#9ca3af",
-    marginBottom: 12,
-  },
-  fieldGroup: {
-    marginTop: 8,
-  },
-  inputLabel: {
-    fontSize: 12,
-    color: "#9ca3af",
-    marginBottom: 4,
-  },
-  input: {
-    height: 42,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    backgroundColor: "#020617",
-    borderWidth: 1,
-    borderColor: "#111827",
-    color: "#e5e7eb",
-    fontSize: 14,
-  },
-  rowHalf: {
-    flex: 1,
-  },
-  toggleRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  toggleButton: {
-    flex: 1,
-    height: 42,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#020617",
-  },
-  toggleButtonActiveExpense: {
-    backgroundColor: "#451a1a",
-    borderColor: "#f97373",
-  },
-  toggleButtonActiveIncome: {
-    backgroundColor: "#064e3b",
-    borderColor: "#22c55e",
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#9ca3af",
-  },
-  toggleButtonTextActive: {
-    color: "#f9fafb",
-  },
-  primaryButton: {
-    marginTop: 8,
-    height: 46,
-    borderRadius: 999,
-    backgroundColor: "#2563eb",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#f9fafb",
-  },
-  emptyText: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#6b7280",
-  },
-  entryRow: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    backgroundColor: "#020617",
-    borderWidth: 1,
-    borderColor: "#111827",
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: 8,
-  },
-  entryMain: {
-    flex: 1,
-  },
-  entryDescription: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: "#e5e7eb",
-  },
-  entryMetaRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 2,
-  },
-  entryCategory: {
-    fontSize: 11,
-    color: "#9ca3af",
-  },
-  entryType: {
-    fontSize: 11,
-    color: "#6b7280",
-  },
-  entryAmountBlock: {
-    alignItems: "flex-end",
-  },
-  entryAmount: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  entryDate: {
-    marginTop: 2,
-    fontSize: 11,
-    color: "#6b7280",
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scrollContent: {
+      paddingHorizontal: 20,
+      paddingVertical: 24,
+      gap: 24,
+    },
+    headerRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      marginBottom: 4,
+    },
+    appTitle: {
+      fontSize: 28,
+      fontWeight: "700",
+      color: theme.text,
+    },
+    appSubtitle: {
+      marginTop: 4,
+      fontSize: 13,
+      color: theme.textSoft,
+    },
+    headerRight: {
+      alignItems: "flex-end",
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.cardSoft,
+    },
+    chipLabel: {
+      fontSize: 11,
+      color: theme.textSoft,
+    },
+    chipValue: {
+      fontSize: 13,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    cardHighlighted: {
+      marginTop: 16,
+      borderRadius: 24,
+      padding: 20,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.primarySoft,
+      gap: 16,
+    },
+    cardHeaderRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+    },
+    cardTitle: {
+      fontSize: 15,
+      color: theme.textSoft,
+    },
+    cardHighlightValue: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: theme.success,
+    },
+    row: {
+      flexDirection: "row",
+      gap: 12,
+      marginTop: 8,
+    },
+    column: {
+      flex: 1,
+    },
+    pillRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      marginBottom: 4,
+    },
+    statusDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 999,
+    },
+    pillLabel: {
+      fontSize: 12,
+      color: theme.textSoft,
+    },
+    valuePositive: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.success,
+    },
+    valueNegative: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.danger,
+    },
+    cardSmall: {
+      flex: 1,
+      borderRadius: 20,
+      padding: 16,
+      backgroundColor: theme.cardSoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginTop: 16,
+      gap: 4,
+    },
+    cardSmallLabel: {
+      fontSize: 13,
+      color: theme.textSoft,
+    },
+    cardSmallValue: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.text,
+      marginTop: 4,
+    },
+    cardSmallCaption: {
+      fontSize: 11,
+      color: theme.textSoft,
+      marginTop: 2,
+    },
+    section: {
+      marginTop: 20,
+      borderRadius: 24,
+      padding: 18,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    sectionTitle: {
+      fontSize: 17,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    sectionSubtitle: {
+      fontSize: 12,
+      color: theme.textSoft,
+      marginTop: 4,
+      marginBottom: 12,
+    },
+    inputGroup: {
+      gap: 10,
+      marginBottom: 12,
+    },
+    input: {
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      color: theme.text,
+      backgroundColor: theme.inputBackground,
+      fontSize: 14,
+    },
+    inputHalf: {
+      flex: 1,
+    },
+    toggleRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginBottom: 14,
+    },
+    toggleButton: {
+      flex: 1,
+      borderRadius: 999,
+      paddingVertical: 10,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.cardSoft,
+    },
+    toggleButtonActiveIncome: {
+      backgroundColor: theme.incomePill,
+      borderColor: theme.incomePill,
+    },
+    toggleButtonActiveExpense: {
+      backgroundColor: theme.expensePill,
+      borderColor: theme.expensePill,
+    },
+    toggleText: {
+      fontSize: 14,
+      fontWeight: "500",
+      color: theme.textSoft,
+    },
+    toggleTextActive: {
+      color: theme.primaryText,
+    },
+    primaryButton: {
+      borderRadius: 999,
+      paddingVertical: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.primary,
+    },
+    primaryButtonText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: theme.primaryText,
+    },
+    transactionRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    transactionLeft: {
+      flex: 1,
+      paddingRight: 8,
+    },
+    transactionRight: {
+      alignItems: "flex-end",
+      minWidth: 100,
+    },
+    transactionTitle: {
+      fontSize: 14,
+      color: theme.text,
+      fontWeight: "500",
+    },
+    transactionMeta: {
+      fontSize: 11,
+      color: theme.textSoft,
+      marginTop: 2,
+    },
+    transactionAmountPositive: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.success,
+    },
+    transactionAmountNegative: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.danger,
+    },
+    transactionDate: {
+      fontSize: 11,
+      color: theme.textSoft,
+      marginTop: 2,
+    },
+  });
 
-export default App;
