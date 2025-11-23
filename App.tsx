@@ -1,225 +1,296 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
-  ScrollView,
-  StyleSheet,
+  View,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  ScrollView,
+  StyleSheet,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-type TransactionType = "income" | "expense";
+type EntryType = "income" | "expense";
 
-interface Transaction {
+interface FinanceEntry {
   id: string;
   description: string;
   amount: number;
-  type: TransactionType;
+  type: EntryType;
+  category: string;
   createdAt: string;
 }
 
-const STORAGE_KEY = "FINANCEAPP_TRANSACTIONS_V1";
+const STORAGE_KEY = "financeapp_entries_v1";
 
-export default function App() {
+const App: React.FC = () => {
+  const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [type, setType] = useState<TransactionType>("expense");
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [isLoadingStorage, setIsLoadingStorage] = useState(true);
+  const [type, setType] = useState<EntryType>("expense");
+  const [category, setCategory] = useState("Alimentação");
+  const [error, setError] = useState("");
 
-  // Load saved transactions on mount
+  // Load saved data on first render (web localStorage)
   useEffect(() => {
-    const loadTransactions = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const parsed: Transaction[] = JSON.parse(stored);
-          setTransactions(parsed);
-        }
-      } catch (error) {
-        console.warn("Erro ao carregar dados salvos", error);
-      } finally {
-        setIsLoadingStorage(false);
+    try {
+      if (typeof window === "undefined") return;
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setEntries(
+          parsed
+            .filter((e) => typeof e.amount === "number" && !!e.description)
+            .map((e) => ({
+              ...e,
+              createdAt: e.createdAt || new Date().toISOString(),
+            }))
+        );
       }
-    };
-
-    loadTransactions();
+    } catch (error) {
+      console.warn("Erro ao carregar dados locais:", error);
+    }
   }, []);
 
-  // Persist transactions whenever they change
+  // Persist data whenever entries change
   useEffect(() => {
-    if (isLoadingStorage) return;
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    } catch (error) {
+      console.warn("Erro ao salvar dados locais:", error);
+    }
+  }, [entries]);
 
-    const saveTransactions = async () => {
-      try {
-        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
-      } catch (error) {
-        console.warn("Erro ao salvar dados", error);
-      }
-    };
+  const handleSave = () => {
+    const normalizedAmount = (amount || "")
+      .replace("R$", "")
+      .replace(/\s/g, "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .trim();
 
-    saveTransactions();
-  }, [transactions, isLoadingStorage]);
+    const value = Number(normalizedAmount);
 
-  const totals = useMemo(() => {
-    const income = transactions
-      .filter((t) => t.type === "income")
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const expenses = transactions
-      .filter((t) => t.type === "expense")
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    return {
-      income,
-      expenses,
-      balance: income - expenses,
-    };
-  }, [transactions]);
-
-  const formatCurrency = (value: number) =>
-    value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    });
-
-  const handleAddTransaction = () => {
-    const cleaned = amount.replace("R$", "").replace(" ", "").replace(",", ".");
-    const numericAmount = parseFloat(cleaned);
-
-    if (!description.trim() || isNaN(numericAmount) || numericAmount <= 0) {
+    if (!description.trim()) {
+      setError("Informe uma descrição para o lançamento.");
       return;
     }
 
-    const newTransaction: Transaction = {
-      id: Date.now().toString(),
+    if (!amount.trim() || isNaN(value) || value <= 0) {
+      setError("Informe um valor válido maior que zero.");
+      return;
+    }
+
+    setError("");
+
+    const entry: FinanceEntry = {
+      id: String(Date.now()),
       description: description.trim(),
-      amount: numericAmount,
+      amount: value,
       type,
+      category: category.trim() || (type === "income" ? "Receita" : "Despesa"),
       createdAt: new Date().toISOString(),
     };
 
-    setTransactions((prev) => [newTransaction, ...prev]);
+    setEntries((prev) => [entry, ...prev]);
     setDescription("");
     setAmount("");
     setType("expense");
+    setCategory("Alimentação");
   };
 
-  const handleToggleType = (value: TransactionType) => {
-    setType(value);
-  };
+  const incomes = entries.filter((e) => e.type === "income");
+  const expenses = entries.filter((e) => e.type === "expense");
 
-  const handleClearAll = async () => {
-    setTransactions([]);
-    try {
-      await AsyncStorage.removeItem(STORAGE_KEY);
-    } catch (error) {
-      console.warn("Erro ao limpar dados", error);
-    }
-  };
+  const totalIncome = incomes.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const balance = totalIncome - totalExpense;
+
+  const formatCurrency = (value: number) =>
+    `R$ ${value.toFixed(2).replace(".", ",")}`;
+
+  const currentMonthLabel = new Date().toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+
+  const averageExpense =
+    expenses.length === 0 ? 0 : totalExpense / expenses.length;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-      >
-        <View style={styles.header}>
-          <Text style={styles.appTitle}>FinanceApp</Text>
-          <Text style={styles.appSubtitle}>
-            Visão clara das suas finanças mensais.
-          </Text>
-        </View>
-
-        {/* Summary card */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryColumn}>
-              <Text style={styles.summaryLabel}>Receitas</Text>
-              <Text style={[styles.summaryValue, styles.incomeText]}>
-                {formatCurrency(totals.income)}
-              </Text>
-            </View>
-            <View style={styles.summaryColumn}>
-              <Text style={styles.summaryLabel}>Despesas</Text>
-              <Text style={[styles.summaryValue, styles.expenseText]}>
-                {formatCurrency(totals.expenses)}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.summaryFooter}>
-            <Text style={styles.summaryLabel}>Saldo do mês</Text>
-            <Text
-              style={[
-                styles.summaryValueBig,
-                totals.balance >= 0 ? styles.incomeText : styles.expenseText,
-              ]}
-            >
-              {formatCurrency(totals.balance)}
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.appTitle}>FinanceApp</Text>
+            <Text style={styles.appSubtitle}>
+              Visão clara das suas finanças mensais.
             </Text>
           </View>
+          <View style={styles.monthBadge}>
+            <Text style={styles.monthBadgeLabel}>Mês atual</Text>
+            <Text style={styles.monthBadgeText}>{currentMonthLabel}</Text>
+          </View>
         </View>
 
-        {/* New transaction */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Consolidated balance card */}
+          <View style={styles.cardLarge}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={styles.cardTitle}>Saldo consolidado</Text>
+              <Text
+                style={[
+                  styles.balanceValue,
+                  balance >= 0 ? styles.balancePositive : styles.balanceNegative,
+                ]}
+              >
+                {formatCurrency(balance)}
+              </Text>
+            </View>
+
+            <View style={styles.row}>
+              <View style={styles.subCard}>
+                <View style={styles.dotRow}>
+                  <View style={[styles.statusDot, styles.incomeDot]} />
+                  <Text style={styles.subCardTitle}>Receitas</Text>
+                </View>
+                <Text style={[styles.subCardValue, styles.incomeText]}>
+                  {formatCurrency(totalIncome)}
+                </Text>
+              </View>
+
+              <View style={styles.subCard}>
+                <View style={styles.dotRow}>
+                  <View style={[styles.statusDot, styles.expenseDot]} />
+                  <Text style={styles.subCardTitle}>Despesas</Text>
+                </View>
+                <Text style={[styles.subCardValue, styles.expenseText]}>
+                  {formatCurrency(totalExpense)}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.row}>
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Entrada líquida</Text>
+                <Text
+                  style={[
+                    styles.infoValue,
+                    balance >= 0 ? styles.incomeText : styles.expenseText,
+                  ]}
+                >
+                  {formatCurrency(balance)}
+                </Text>
+                <Text style={styles.infoHint}>Resultado do mês</Text>
+              </View>
+
+              <View style={styles.infoCard}>
+                <Text style={styles.infoLabel}>Gasto médio / despesa</Text>
+                <Text style={styles.infoValue}>
+                  {formatCurrency(averageExpense)}
+                </Text>
+                <Text style={styles.infoHint}>
+                  Média por lançamento de despesa.
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* New entry */}
+          <View style={styles.cardLarge}>
             <Text style={styles.sectionTitle}>Novo lançamento</Text>
             <Text style={styles.sectionSubtitle}>
               Registre rapidamente suas despesas e receitas do dia.
             </Text>
-          </View>
 
-          <View style={styles.card}>
-            <TextInput
-              style={styles.input}
-              placeholder="Descrição (ex: Uber, mercado, plantão)"
-              placeholderTextColor="#8A8FA6"
-              value={description}
-              onChangeText={setDescription}
-            />
+            <View style={styles.fieldGroup}>
+              <Text style={styles.inputLabel}>Descrição</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Descrição (ex: Uber, mercado, plantão)"
+                placeholderTextColor="#6b7280"
+                value={description}
+                onChangeText={(text) => {
+                  setDescription(text);
+                  if (error) setError("");
+                }}
+              />
+            </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Valor (R$)"
-              placeholderTextColor="#8A8FA6"
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-            />
+            <View style={styles.row}>
+              <View style={[styles.fieldGroup, styles.rowHalf]}>
+                <Text style={styles.inputLabel}>Valor (R$)</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="0,00"
+                  placeholderTextColor="#6b7280"
+                  keyboardType="decimal-pad"
+                  value={amount}
+                  onChangeText={(text) => {
+                    setAmount(text);
+                    if (error) setError("");
+                  }}
+                />
+              </View>
+              <View style={[styles.fieldGroup, styles.rowHalf]}>
+                <Text style={styles.inputLabel}>Categoria</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder={
+                    type === "income" ? "Renda fixa, extra..." : "Alimentação..."
+                  }
+                  placeholderTextColor="#6b7280"
+                  value={category}
+                  onChangeText={(text) => {
+                    setCategory(text);
+                    if (error) setError("");
+                  }}
+                />
+              </View>
+            </View>
 
-            <View style={styles.typeToggleRow}>
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[
-                  styles.typeToggleButton,
-                  type === "expense" && styles.typeToggleButtonActiveExpense,
+                  styles.toggleButton,
+                  type === "expense" && styles.toggleButtonActiveExpense,
                 ]}
-                onPress={() => handleToggleType("expense")}
+                onPress={() => {
+                  setType("expense");
+                  if (error) setError("");
+                }}
               >
                 <Text
                   style={[
-                    styles.typeToggleText,
-                    type === "expense" && styles.typeToggleTextActive,
+                    styles.toggleButtonText,
+                    type === "expense" && styles.toggleButtonTextActive,
                   ]}
                 >
                   Despesa
                 </Text>
               </TouchableOpacity>
-
               <TouchableOpacity
                 style={[
-                  styles.typeToggleButton,
-                  type === "income" && styles.typeToggleButtonActiveIncome,
+                  styles.toggleButton,
+                  type === "income" && styles.toggleButtonActiveIncome,
                 ]}
-                onPress={() => handleToggleType("income")}
+                onPress={() => {
+                  setType("income");
+                  if (error) setError("");
+                }}
               >
                 <Text
                   style={[
-                    styles.typeToggleText,
-                    type === "income" && styles.typeToggleTextActive,
+                    styles.toggleButtonText,
+                    type === "income" && styles.toggleButtonTextActive,
                   ]}
                 >
                   Receita
@@ -227,71 +298,60 @@ export default function App() {
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleAddTransaction}
-            >
-              <Text style={styles.saveButtonText}>Salvar lançamento</Text>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
+              <Text style={styles.primaryButtonText}>Salvar lançamento</Text>
             </TouchableOpacity>
-
-            {transactions.length > 0 && (
-              <TouchableOpacity
-                style={styles.clearButton}
-                onPress={handleClearAll}
-              >
-                <Text style={styles.clearButtonText}>Limpar todos</Text>
-              </TouchableOpacity>
-            )}
           </View>
-        </View>
 
-        {/* Last transactions */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          {/* Last entries */}
+          <View style={styles.cardLarge}>
             <Text style={styles.sectionTitle}>Últimos lançamentos</Text>
             <Text style={styles.sectionSubtitle}>
               Acompanhe onde seu dinheiro está indo.
             </Text>
-          </View>
 
-          <View style={styles.card}>
-            {transactions.length === 0 ? (
+            {entries.length === 0 ? (
               <Text style={styles.emptyText}>
-                Nenhum lançamento ainda. Comece adicionando uma despesa ou
-                receita.
+                Você ainda não registrou nenhum lançamento.
               </Text>
             ) : (
-              transactions.map((t) => (
-                <View key={t.id} style={styles.transactionItem}>
-                  <View style={styles.transactionLeft}>
-                    <Text style={styles.transactionDescription}>
-                      {t.description}
+              entries.map((entry) => (
+                <View key={entry.id} style={styles.entryRow}>
+                  <View style={styles.entryMain}>
+                    <Text style={styles.entryDescription}>
+                      {entry.description}
                     </Text>
-                    <Text style={styles.transactionMeta}>
-                      {t.type === "income" ? "Receita" : "Despesa"} •{" "}
-                      {new Date(t.createdAt).toLocaleDateString("pt-BR")}
+                    <View style={styles.entryMetaRow}>
+                      <Text style={styles.entryCategory}>{entry.category}</Text>
+                      <Text style={styles.entryType}>
+                        {entry.type === "income" ? "Receita" : "Despesa"}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.entryAmountBlock}>
+                    <Text
+                      style={[
+                        styles.entryAmount,
+                        entry.type === "income"
+                          ? styles.incomeText
+                          : styles.expenseText,
+                      ]}
+                    >
+                      {formatCurrency(entry.amount)}
+                    </Text>
+                    <Text style={styles.entryDate}>
+                      {new Date(entry.createdAt).toLocaleDateString("pt-BR")}
                     </Text>
                   </View>
-                  <Text
-                    style={[
-                      styles.transactionAmount,
-                      t.type === "income"
-                        ? styles.incomeText
-                        : styles.expenseText,
-                    ]}
-                  >
-                    {t.type === "income" ? "+" : "-"}
-                    {formatCurrency(t.amount)}
-                  </Text>
                 </View>
               ))
             )}
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
+      </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -300,191 +360,287 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-  },
-  contentContainer: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 40,
-    maxWidth: 1024,
-    alignSelf: "center",
-    width: "100%",
+    paddingBottom: 16,
+    backgroundColor: "#020617",
   },
-  header: {
-    marginBottom: 24,
+  scroll: {
+    marginTop: 16,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+    gap: 16,
+  },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   appTitle: {
     fontSize: 28,
-    fontWeight: "700",
-    color: "#F9FAFB",
-    marginBottom: 4,
+    fontWeight: "800",
+    color: "#f9fafb",
   },
   appSubtitle: {
+    marginTop: 4,
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#9ca3af",
   },
-  summaryCard: {
-    backgroundColor: "#020617",
-    borderRadius: 16,
+  monthBadge: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#1D2841",
-    padding: 16,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 10,
-    elevation: 4,
+    borderColor: "#1d4ed8",
+    backgroundColor: "#020617",
+    alignItems: "flex-end",
   },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  monthBadgeLabel: {
+    fontSize: 11,
+    color: "#9ca3af",
   },
-  summaryColumn: {
-    flex: 1,
-    paddingRight: 12,
-  },
-  summaryLabel: {
+  monthBadgeText: {
     fontSize: 13,
-    color: "#9CA3AF",
-    marginBottom: 4,
-  },
-  summaryValue: {
-    fontSize: 18,
     fontWeight: "600",
+    color: "#e5e7eb",
+    textTransform: "lowercase",
   },
-  summaryFooter: {
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#1D2841",
-    paddingTop: 12,
+  cardLarge: {
+    borderRadius: 24,
+    padding: 18,
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#111827",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-start",
+    marginBottom: 16,
   },
-  summaryValueBig: {
-    fontSize: 22,
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#e5e7eb",
+  },
+  balanceValue: {
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  balancePositive: {
+    color: "#22c55e",
+  },
+  balanceNegative: {
+    color: "#f97373",
+  },
+  row: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  subCard: {
+    flex: 1,
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#1f2937",
+  },
+  dotRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+    gap: 6,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+  },
+  incomeDot: {
+    backgroundColor: "#22c55e",
+  },
+  expenseDot: {
+    backgroundColor: "#f97373",
+  },
+  subCardTitle: {
+    fontSize: 12,
+    color: "#9ca3af",
+  },
+  subCardValue: {
+    fontSize: 16,
     fontWeight: "700",
   },
   incomeText: {
-    color: "#22C55E",
+    color: "#22c55e",
   },
   expenseText: {
-    color: "#F97373",
+    color: "#f97373",
   },
-  section: {
-    marginBottom: 24,
+  infoCard: {
+    flex: 1,
+    marginTop: 10,
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#1f2937",
   },
-  sectionHeader: {
-    marginBottom: 8,
+  infoLabel: {
+    fontSize: 12,
+    color: "#9ca3af",
+  },
+  infoValue: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#e5e7eb",
+  },
+  infoHint: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#6b7280",
   },
   sectionTitle: {
-    fontSize: 18,
-    color: "#F9FAFB",
+    fontSize: 16,
     fontWeight: "600",
+    color: "#e5e7eb",
+    marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: "#9CA3AF",
+    color: "#9ca3af",
+    marginBottom: 12,
   },
-  card: {
-    backgroundColor: "#020617",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#1D2841",
-    padding: 16,
+  fieldGroup: {
     marginTop: 8,
   },
+  inputLabel: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginBottom: 4,
+  },
   input: {
+    height: 42,
+    borderRadius: 999,
+    paddingHorizontal: 16,
     backgroundColor: "#020617",
-    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#1F2937",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#F9FAFB",
-    marginBottom: 12,
+    borderColor: "#111827",
+    color: "#e5e7eb",
     fontSize: 14,
   },
-  typeToggleRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginBottom: 16,
-  } as any,
-  typeToggleButton: {
+  rowHalf: {
     flex: 1,
+  },
+  toggleRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  toggleButton: {
+    flex: 1,
+    height: 42,
     borderRadius: 999,
-    paddingVertical: 10,
-    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#1F2937",
+    borderColor: "#1f2937",
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "#020617",
   },
-  typeToggleButtonActiveExpense: {
-    backgroundColor: "#111827",
-    borderColor: "#F97373",
+  toggleButtonActiveExpense: {
+    backgroundColor: "#451a1a",
+    borderColor: "#f97373",
   },
-  typeToggleButtonActiveIncome: {
-    backgroundColor: "#111827",
-    borderColor: "#22C55E",
+  toggleButtonActiveIncome: {
+    backgroundColor: "#064e3b",
+    borderColor: "#22c55e",
   },
-  typeToggleText: {
+  toggleButtonText: {
     fontSize: 14,
-    color: "#9CA3AF",
     fontWeight: "500",
+    color: "#9ca3af",
   },
-  typeToggleTextActive: {
-    color: "#F9FAFB",
+  toggleButtonTextActive: {
+    color: "#f9fafb",
   },
-  saveButton: {
-    backgroundColor: "#2563EB",
+  primaryButton: {
+    marginTop: 8,
+    height: 46,
     borderRadius: 999,
-    paddingVertical: 12,
+    backgroundColor: "#2563eb",
+    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
-    marginTop: 4,
   },
-  saveButtonText: {
-    color: "#F9FAFB",
+  primaryButtonText: {
     fontSize: 15,
     fontWeight: "600",
-  },
-  clearButton: {
-    marginTop: 4,
-    paddingVertical: 8,
-    alignItems: "center",
-  },
-  clearButtonText: {
-    color: "#9CA3AF",
-    fontSize: 13,
+    color: "#f9fafb",
   },
   emptyText: {
-    color: "#9CA3AF",
-    fontSize: 14,
+    marginTop: 8,
+    fontSize: 13,
+    color: "#6b7280",
   },
-  transactionItem: {
+  entryRow: {
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    backgroundColor: "#020617",
+    borderWidth: 1,
+    borderColor: "#111827",
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#1F2937",
+    alignItems: "flex-start",
+    gap: 8,
   },
-  transactionLeft: {
+  entryMain: {
     flex: 1,
-    paddingRight: 12,
   },
-  transactionDescription: {
-    color: "#F9FAFB",
+  entryDescription: {
     fontSize: 14,
     fontWeight: "500",
+    color: "#e5e7eb",
   },
-  transactionMeta: {
-    color: "#9CA3AF",
-    fontSize: 12,
+  entryMetaRow: {
+    flexDirection: "row",
+    gap: 8,
     marginTop: 2,
   },
-  transactionAmount: {
-    fontSize: 15,
-    fontWeight: "600",
+  entryCategory: {
+    fontSize: 11,
+    color: "#9ca3af",
+  },
+  entryType: {
+    fontSize: 11,
+    color: "#6b7280",
+  },
+  entryAmountBlock: {
+    alignItems: "flex-end",
+  },
+  entryAmount: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  entryDate: {
+    marginTop: 2,
+    fontSize: 11,
+    color: "#6b7280",
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#f97373",
   },
 });
+
+export default App;
