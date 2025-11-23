@@ -61,6 +61,21 @@ const App: React.FC = () => {
     }
   }, [entries]);
 
+
+  const handleAmountChange = (raw: string) => {
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) {
+      setAmount("");
+      return;
+    }
+    const numeric = parseInt(digits, 10) / 100;
+    const formatted = numeric.toLocaleString("pt-BR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    setAmount(formatted);
+  };
+
   const handleSave = () => {
     const value = Number(
       (amount || "").replace(/\./g, "").replace(",", ".").trim()
@@ -81,23 +96,6 @@ const App: React.FC = () => {
     setEntries((prev) => [entry, ...prev]);
     setDescription("");
     setAmount("");
-
-  // Mask currency input
-  const handleAmountChange = (text: string) => {
-    const digits = text.replace(/\D/g, "");
-    const number = parseFloat(digits) / 100;
-    if (isNaN(number)) {
-      setAmount("");
-      return;
-    }
-    const formatted = number.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-      minimumFractionDigits: 2,
-    });
-    setAmount(formatted);
-  };
-
     setType("expense");
     setCategory("Alimentação");
   };
