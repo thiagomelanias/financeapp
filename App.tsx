@@ -92,6 +92,22 @@ const App: React.FC = () => {
       category: category.trim() || (type === "income" ? "Receita" : "Despesa"),
       createdAt: new Date().toISOString(),
     };
+  const handleDeleteEntry = (id: string) => {
+    try {
+      if (typeof window !== "undefined") {
+        const confirmed = window.confirm(
+          "Deseja realmente excluir este lançamento?"
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+    } catch (error) {
+      // se window não estiver disponível, apenas segue sem confirmação extra
+    }
+    setEntries((prev) => prev.filter((entry) => entry.id !== id));
+  };
+
 
     setEntries((prev) => [entry, ...prev]);
     setDescription("");
@@ -311,6 +327,7 @@ const App: React.FC = () => {
                       </Text>
                     </View>
                   </View>
+                  
                   <View style={styles.entryAmountBlock}>
                     <Text
                       style={[
@@ -325,7 +342,14 @@ const App: React.FC = () => {
                     <Text style={styles.entryDate}>
                       {new Date(entry.createdAt).toLocaleDateString("pt-BR")}
                     </Text>
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteEntry(entry.id)}
+                    >
+                      <Text style={styles.deleteButtonText}>Excluir</Text>
+                    </TouchableOpacity>
                   </View>
+
                 </View>
               ))
             )}
@@ -619,6 +643,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#6b7280",
   },
+  deleteButton: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#4b5563",
+  },
+  deleteButtonText: {
+    fontSize: 11,
+    color: "#9ca3af",
+  },
+
 });
 
 export default App;
