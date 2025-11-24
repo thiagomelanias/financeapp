@@ -29,6 +29,7 @@ const App: React.FC = () => {
   const [type, setType] = useState<EntryType>("expense");
   const [category, setCategory] = useState("Alimentação");
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Load saved data on first render (web localStorage)
   useEffect(() => {
@@ -62,8 +63,8 @@ const App: React.FC = () => {
     }
   }, [entries]);
 
-
   const handleAmountChange = (raw: string) => {
+    setErrorMessage(null); // limpando erro ao digitar
     const digits = raw.replace(/\D/g, "");
     if (!digits) {
       setAmount("");
@@ -78,12 +79,31 @@ const App: React.FC = () => {
   };
 
   const handleSave = () => {
-    const value = Number(
-      (amount || "").replace(/\./g, "").replace(",", ".").trim()
-    );
-    if (!description.trim() || !amount.trim() || isNaN(value)) {
+    const desc = description.trim();
+    const rawAmount = (amount || "").trim();
+
+    // Validações com mensagens claras
+    if (!desc) {
+      setErrorMessage("Descrição obrigatória");
       return;
     }
+
+    if (!rawAmount) {
+      setErrorMessage("Informe um valor");
+      return;
+    }
+
+    const value = Number(
+      rawAmount.replace(/\./g, "").replace(",", ".")
+    );
+
+    if (isNaN(value) || value <= 0) {
+      setErrorMessage("Informe um valor maior que zero");
+      return;
+    }
+
+    // dados válidos
+    setErrorMessage(null);
 
     if (editingId) {
       setEntries((prev) =>
@@ -91,7 +111,7 @@ const App: React.FC = () => {
           entry.id === editingId
             ? {
                 ...entry,
-                description: description.trim(),
+                description: desc,
                 amount: value,
                 type,
                 category:
@@ -104,7 +124,7 @@ const App: React.FC = () => {
     } else {
       const entry: FinanceEntry = {
         id: String(Date.now()),
-        description: description.trim(),
+        description: desc,
         amount: value,
         type,
         category:
@@ -114,12 +134,15 @@ const App: React.FC = () => {
 
       setEntries((prev) => [entry, ...prev]);
     }
+
+    // limpa formulário
     setDescription("");
     setAmount("");
     setType("expense");
     setCategory("Alimentação");
     setEditingId(null);
   };
+
   const handleDeleteEntry = (id: string) => {
     try {
       if (typeof window !== "undefined") {
@@ -137,6 +160,7 @@ const App: React.FC = () => {
   };
 
   const handleEditStart = (entry: FinanceEntry) => {
+    setErrorMessage(null);
     setDescription(entry.description);
     setCategory(entry.category);
     setType(entry.type);
@@ -145,7 +169,6 @@ const App: React.FC = () => {
     setAmount(formatted);
     setEditingId(entry.id);
   };
-
 
   const incomes = entries.filter((e) => e.type === "income");
   const expenses = entries.filter((e) => e.type === "expense");
@@ -263,7 +286,10 @@ const App: React.FC = () => {
                 placeholder="Descrição (ex: Uber, mercado, plantão)"
                 placeholderTextColor="#6b7280"
                 value={description}
-                onChangeText={setDescription}
+                onChangeText={(text) => {
+                  setErrorMessage(null);
+                  setDescription(text);
+                }}
               />
             </View>
 
@@ -288,7 +314,10 @@ const App: React.FC = () => {
                   }
                   placeholderTextColor="#6b7280"
                   value={category}
-                  onChangeText={setCategory}
+                  onChangeText={(text) => {
+                    setErrorMessage(null);
+                    setCategory(text);
+                  }}
                 />
               </View>
             </View>
@@ -299,7 +328,10 @@ const App: React.FC = () => {
                   styles.toggleButton,
                   type === "expense" && styles.toggleButtonActiveExpense,
                 ]}
-                onPress={() => setType("expense")}
+                onPress={() => {
+                  setErrorMessage(null);
+                  setType("expense");
+                }}
               >
                 <Text
                   style={[
@@ -315,7 +347,10 @@ const App: React.FC = () => {
                   styles.toggleButton,
                   type === "income" && styles.toggleButtonActiveIncome,
                 ]}
-                onPress={() => setType("income")}
+                onPress={() => {
+                  setErrorMessage(null);
+                  setType("income");
+                }}
               >
                 <Text
                   style={[
@@ -329,8 +364,14 @@ const App: React.FC = () => {
             </View>
 
             <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-              <Text style={styles.primaryButtonText}>{editingId ? "Salvar alterações" : "Salvar lançamento"}</Text>
+              <Text style={styles.primaryButtonText}>
+                {editingId ? "Salvar alterações" : "Salvar lançamento"}
+              </Text>
             </TouchableOpacity>
+
+            {errorMessage && (
+              <Text style={styles.errorText}>{errorMessage}</Text>
+            )}
           </View>
 
           {/* Last entries */}
@@ -629,6 +670,11 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#f9fafb",
   },
+  errorText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: "#f97373",
+  },
   emptyText: {
     marginTop: 8,
     fontSize: 13,
@@ -707,7 +753,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#fecaca",
   },
-
 });
 
 export default App;
