@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<EntryType>("expense");
   const [category, setCategory] = useState("Alimentação");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // Load saved data on first render (web localStorage)
   useEffect(() => {
@@ -84,14 +85,41 @@ const App: React.FC = () => {
       return;
     }
 
-    const entry: FinanceEntry = {
-      id: String(Date.now()),
-      description: description.trim(),
-      amount: value,
-      type,
-      category: category.trim() || (type === "income" ? "Receita" : "Despesa"),
-      createdAt: new Date().toISOString(),
-    };
+    if (editingId) {
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.id === editingId
+            ? {
+                ...entry,
+                description: description.trim(),
+                amount: value,
+                type,
+                category:
+                  category.trim() ||
+                  (type === "income" ? "Receita" : "Despesa"),
+              }
+            : entry
+        )
+      );
+    } else {
+      const entry: FinanceEntry = {
+        id: String(Date.now()),
+        description: description.trim(),
+        amount: value,
+        type,
+        category:
+          category.trim() || (type === "income" ? "Receita" : "Despesa"),
+        createdAt: new Date().toISOString(),
+      };
+
+      setEntries((prev) => [entry, ...prev]);
+    }
+    setDescription("");
+    setAmount("");
+    setType("expense");
+    setCategory("Alimentação");
+    setEditingId(null);
+  };
   const handleDeleteEntry = (id: string) => {
     try {
       if (typeof window !== "undefined") {
@@ -103,18 +131,21 @@ const App: React.FC = () => {
         }
       }
     } catch (error) {
-      // se window não estiver disponível, apenas segue sem confirmação extra
+      // Em ambientes sem window (por exemplo, durante build), apenas segue sem confirmação
     }
     setEntries((prev) => prev.filter((entry) => entry.id !== id));
   };
 
-
-    setEntries((prev) => [entry, ...prev]);
-    setDescription("");
-    setAmount("");
-    setType("expense");
-    setCategory("Alimentação");
+  const handleEditStart = (entry: FinanceEntry) => {
+    setDescription(entry.description);
+    setCategory(entry.category);
+    setType(entry.type);
+    // valor em reais com vírgula, sem prefixo "R$"
+    const formatted = entry.amount.toFixed(2).replace(".", ",");
+    setAmount(formatted);
+    setEditingId(entry.id);
   };
+
 
   const incomes = entries.filter((e) => e.type === "income");
   const expenses = entries.filter((e) => e.type === "expense");
@@ -298,7 +329,7 @@ const App: React.FC = () => {
             </View>
 
             <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
-              <Text style={styles.primaryButtonText}>Salvar lançamento</Text>
+              <Text style={styles.primaryButtonText}>{editingId ? "Salvar alterações" : "Salvar lançamento"}</Text>
             </TouchableOpacity>
           </View>
 
@@ -327,7 +358,6 @@ const App: React.FC = () => {
                       </Text>
                     </View>
                   </View>
-                  
                   <View style={styles.entryAmountBlock}>
                     <Text
                       style={[
@@ -342,14 +372,21 @@ const App: React.FC = () => {
                     <Text style={styles.entryDate}>
                       {new Date(entry.createdAt).toLocaleDateString("pt-BR")}
                     </Text>
-                    <TouchableOpacity
-                      style={styles.deleteButton}
-                      onPress={() => handleDeleteEntry(entry.id)}
-                    >
-                      <Text style={styles.deleteButtonText}>Excluir</Text>
-                    </TouchableOpacity>
+                    <View style={styles.entryActions}>
+                      <TouchableOpacity
+                        style={styles.editButton}
+                        onPress={() => handleEditStart(entry)}
+                      >
+                        <Text style={styles.editButtonText}>Editar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => handleDeleteEntry(entry.id)}
+                      >
+                        <Text style={styles.deleteButtonText}>Excluir</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-
                 </View>
               ))
             )}
@@ -643,17 +680,32 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#6b7280",
   },
-  deleteButton: {
-    marginTop: 4,
+  entryActions: {
+    marginTop: 6,
+    flexDirection: "row",
+    gap: 6,
+  },
+  editButton: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#4b5563",
+    borderColor: "#4ade80",
+  },
+  editButtonText: {
+    fontSize: 11,
+    color: "#bbf7d0",
+  },
+  deleteButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#fca5a5",
   },
   deleteButtonText: {
     fontSize: 11,
-    color: "#9ca3af",
+    color: "#fecaca",
   },
 
 });
