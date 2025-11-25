@@ -30,6 +30,7 @@ const App: React.FC = () => {
   const [category, setCategory] = useState("Alimentação");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
 
   // Load saved data on first render (web localStorage)
   useEffect(() => {
@@ -93,9 +94,7 @@ const App: React.FC = () => {
       return;
     }
 
-    const value = Number(
-      rawAmount.replace(/\./g, "").replace(",", ".")
-    );
+    const value = Number(rawAmount.replace(/\./g, "").replace(",", "."));
 
     if (isNaN(value) || value <= 0) {
       setErrorMessage("Informe um valor maior que zero");
@@ -164,7 +163,7 @@ const App: React.FC = () => {
     setDescription(entry.description);
     setCategory(entry.category);
     setType(entry.type);
-    // valor em reais com vírgula, sem prefixo "R$"
+    // valor em reais com vírgula, mantendo separador de milhar
     const formatted = entry.amount.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -173,8 +172,23 @@ const App: React.FC = () => {
     setEditingId(entry.id);
   };
 
-  const incomes = entries.filter((e) => e.type === "income");
-  const expenses = entries.filter((e) => e.type === "expense");
+  const changeMonth = (delta: number) => {
+    setCurrentMonth((prev) => {
+      const d = new Date(prev);
+      d.setMonth(d.getMonth() + delta);
+      return d;
+    });
+  };
+
+  const isSameMonth = (date: Date, ref: Date) =>
+    date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+
+  const filteredEntries = entries.filter((entry) =>
+    isSameMonth(new Date(entry.createdAt), currentMonth)
+  );
+
+  const incomes = filteredEntries.filter((e) => e.type === "income");
+  const expenses = filteredEntries.filter((e) => e.type === "expense");
 
   const totalIncome = incomes.reduce((sum, e) => sum + e.amount, 0);
   const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -189,13 +203,16 @@ const App: React.FC = () => {
 
   const formatCurrency = (value: number) => currencyFormatter.format(value);
 
-  const currentMonthLabel = new Date().toLocaleDateString("pt-BR", {
+  const currentMonthLabel = currentMonth.toLocaleDateString("pt-BR", {
     month: "long",
     year: "numeric",
   });
 
   const averageExpense =
     expenses.length === 0 ? 0 : totalExpense / expenses.length;
+
+  const now = new Date();
+  const showingCurrentMonth = isSameMonth(currentMonth, now);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -209,8 +226,24 @@ const App: React.FC = () => {
             </Text>
           </View>
           <View style={styles.monthBadge}>
-            <Text style={styles.monthBadgeLabel}>Mês atual</Text>
-            <Text style={styles.monthBadgeText}>{currentMonthLabel}</Text>
+            <TouchableOpacity
+              style={styles.monthNavButton}
+              onPress={() => changeMonth(-1)}
+            >
+              <Text style={styles.monthNavButtonText}>{"‹"}</Text>
+            </TouchableOpacity>
+            <View style={styles.monthInfo}>
+              <Text style={styles.monthBadgeLabel}>
+                {showingCurrentMonth ? "Mês atual" : "Competência"}
+              </Text>
+              <Text style={styles.monthBadgeText}>{currentMonthLabel}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.monthNavButton}
+              onPress={() => changeMonth(1)}
+            >
+              <Text style={styles.monthNavButtonText}>{"›"}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -266,7 +299,9 @@ const App: React.FC = () => {
                 >
                   {formatCurrency(balance)}
                 </Text>
-                <Text style={styles.infoHint}>Resultado do mês</Text>
+                <Text style={styles.infoHint}>
+                  Resultado do mês selecionado
+                </Text>
               </View>
 
               <View style={styles.infoCard}>
@@ -390,12 +425,12 @@ const App: React.FC = () => {
               Acompanhe onde seu dinheiro está indo.
             </Text>
 
-            {entries.length === 0 ? (
+            {filteredEntries.length === 0 ? (
               <Text style={styles.emptyText}>
-                Você ainda não registrou nenhum lançamento.
+                Você ainda não registrou nenhum lançamento neste mês.
               </Text>
             ) : (
-              entries.map((entry) => (
+              filteredEntries.map((entry) => (
                 <View key={entry.id} style={styles.entryRow}>
                   <View style={styles.entryMain}>
                     <Text style={styles.entryDescription}>
@@ -482,13 +517,18 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
   },
   monthBadge: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: "#1d4ed8",
     backgroundColor: "#020617",
-    alignItems: "flex-end",
+  },
+  monthInfo: {
+    alignItems: "center",
+    marginHorizontal: 8,
   },
   monthBadgeLabel: {
     fontSize: 11,
@@ -499,6 +539,19 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#e5e7eb",
     textTransform: "lowercase",
+  },
+  monthNavButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  monthNavButtonText: {
+    fontSize: 14,
+    color: "#e5e7eb",
   },
   cardLarge: {
     borderRadius: 24,
