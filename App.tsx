@@ -17,17 +17,187 @@ interface FinanceEntry {
   amount: number;
   type: EntryType;
   category: string;
+  subcategory?: string;
+  paymentMethod?: string;
+  receivingMethod?: string;
   createdAt: string;
 }
 
 const STORAGE_KEY = "financeapp_entries_v1";
+
+// Categorias e subcategorias de DESPESAS
+const expenseCategories: Record<string, string[]> = {
+  Moradia: [
+    "Aluguel",
+    "Condomínio",
+    "Prestação do imóvel",
+    "IPTU",
+    "Água",
+    "Energia elétrica",
+    "Gás",
+    "Internet",
+    "Manutenção / reparos",
+    "Seguro residencial",
+    "Mobiliário / decoração",
+  ],
+  Alimentação: [
+    "Supermercado",
+    "Hortifruti",
+    "Padaria",
+    "Restaurante",
+    "Lanches / fast-food",
+    "Delivery",
+    "Alimentação no trabalho",
+  ],
+  Transporte: [
+    "Combustível",
+    "Uber / Táxi",
+    "Estacionamento",
+    "Transporte público",
+    "Pedágio",
+    "Manutenção do veículo",
+    "Seguro do veículo",
+    "Licenciamento / IPVA",
+    "Financiamento do veículo",
+  ],
+  Saúde: [
+    "Consultas médicas",
+    "Exames",
+    "Farmácia / medicamentos",
+    "Plano de saúde",
+    "Odontologia",
+    "Terapias / psicologia",
+    "Óculos / lentes / próteses",
+    "Academia / fitness",
+  ],
+  Educação: [
+    "Mensalidade escolar",
+    "Faculdade / pós / residência",
+    "Cursos",
+    "Livros / materiais",
+    "Aulas particulares",
+    "Congressos / eventos",
+  ],
+  "Trabalho / Carreira": [
+    "Ferramentas de trabalho",
+    "Assinaturas profissionais",
+    "Registro profissional / conselhos",
+    "Uniformes / equipamentos / EPI",
+  ],
+  "Lazer e Entretenimento": [
+    "Cinema / teatro",
+    "Viagens",
+    "Restaurantes de lazer",
+    "Assinaturas / streaming",
+    "Passeios",
+    "Hobbies",
+    "Jogos",
+  ],
+  "Acessórios e estética": [
+    "Roupas",
+    "Calçados",
+    "Acessórios",
+    "Cosméticos",
+    "Cuidados pessoais / barbearia / salão",
+    "Presentes",
+    "Eletrônicos",
+  ],
+  "Casa e Serviços": [
+    "Ajudante / diarista",
+    "Manutenção / reforma",
+    "Produtos de limpeza",
+    "Serviços domésticos",
+    "Jardinagem",
+    "Reparos emergenciais",
+  ],
+  Família: [
+    "Mesada",
+    "Escola / creche das crianças",
+    "Brinquedos",
+    "Alimentação da família",
+    "Pets: ração, veterinário, banho/tosa",
+  ],
+  Finanças: [
+    "Tarifas bancárias",
+    "Juros / multas",
+    "Anuidades de cartão",
+    "Consultorias financeiras",
+  ],
+  "Impostos e Obrigações": [
+    "Imposto de renda",
+    "Multas",
+    "Taxas diversas",
+    "Documentações",
+  ],
+  Investimentos: [
+    "Aporte renda fixa",
+    "Aporte renda variável",
+    "Cripto",
+    "Previdência privada",
+    "Reserva de emergência",
+  ],
+  Outros: [
+    "Doações",
+    "Ajuda a terceiros",
+    "Despesas não classificadas",
+  ],
+};
+
+// Categorias de RECEITAS
+const incomeCategories: string[] = [
+  "Salário fixo",
+  "Bolsa",
+  "Aposentadoria / pensão",
+  "Hora extra",
+  "Renda extra",
+  "Aulas / palestras",
+  "Prestação de serviços",
+  "Freelancer",
+  "Empreendedorismo / negócios",
+  "Vendas físicas",
+  "Vendas digitais",
+  "Alugueis / rendimentos",
+  "Investimentos / dividendos",
+  "Doações / ajudas",
+  "Reembolsos / restituições",
+  "Outros / não classificado",
+];
+
+// Formas de pagamento (despesas)
+const paymentMethods: string[] = [
+  "Crédito",
+  "Débito",
+  "Pix",
+  "Boleto",
+  "Dinheiro",
+  "Transferência",
+  "Cheque",
+  "Outra forma pagto",
+];
+
+// Formas de recebimento (receitas)
+const receivingMethods: string[] = [
+  "Cartão Crédito",
+  "Cartão Débito",
+  "Pix",
+  "Boleto",
+  "Dinheiro",
+  "Depósito / transferência",
+  "Cheque",
+  "Outra forma recebimento",
+];
+
+const DEFAULT_EXPENSE_CATEGORY = "Alimentação";
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [type, setType] = useState<EntryType>("expense");
-  const [category, setCategory] = useState("Alimentação");
+  const [category, setCategory] = useState<string>(DEFAULT_EXPENSE_CATEGORY);
+  const [subcategory, setSubcategory] = useState<string>("");
+  const [paymentMethod, setPaymentMethod] = useState<string>("");
+  const [receivingMethod, setReceivingMethod] = useState<string>("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -42,8 +212,8 @@ const App: React.FC = () => {
       if (Array.isArray(parsed)) {
         setEntries(
           parsed
-            .filter((e) => typeof e.amount === "number" && !!e.description)
-            .map((e) => ({
+            .filter((e: any) => typeof e.amount === "number" && !!e.description)
+            .map((e: any) => ({
               ...e,
               createdAt: e.createdAt || new Date().toISOString(),
             }))
@@ -79,6 +249,17 @@ const App: React.FC = () => {
     setAmount(formatted);
   };
 
+  const resetForm = () => {
+    setDescription("");
+    setAmount("");
+    setType("expense");
+    setCategory(DEFAULT_EXPENSE_CATEGORY);
+    setSubcategory("");
+    setPaymentMethod("");
+    setReceivingMethod("");
+    setEditingId(null);
+  };
+
   const handleSave = () => {
     const desc = description.trim();
     const rawAmount = (amount || "").trim();
@@ -104,18 +285,29 @@ const App: React.FC = () => {
     // dados válidos
     setErrorMessage(null);
 
+    const baseData: Omit<FinanceEntry, "id"> = {
+      description: desc,
+      amount: value,
+      type,
+      category:
+        category.trim() ||
+        (type === "income" ? "Renda extra" : DEFAULT_EXPENSE_CATEGORY),
+      subcategory: subcategory.trim() || undefined,
+      paymentMethod: type === "expense" ? paymentMethod || undefined : undefined,
+      receivingMethod:
+        type === "income" ? receivingMethod || undefined : undefined,
+      createdAt: new Date().toISOString(),
+    };
+
     if (editingId) {
       setEntries((prev) =>
         prev.map((entry) =>
           entry.id === editingId
             ? {
                 ...entry,
-                description: desc,
-                amount: value,
-                type,
-                category:
-                  category.trim() ||
-                  (type === "income" ? "Receita" : "Despesa"),
+                ...baseData,
+                // preserva createdAt original ao editar
+                createdAt: entry.createdAt || baseData.createdAt,
               }
             : entry
         )
@@ -123,23 +315,13 @@ const App: React.FC = () => {
     } else {
       const entry: FinanceEntry = {
         id: String(Date.now()),
-        description: desc,
-        amount: value,
-        type,
-        category:
-          category.trim() || (type === "income" ? "Receita" : "Despesa"),
-        createdAt: new Date().toISOString(),
+        ...baseData,
       };
 
       setEntries((prev) => [entry, ...prev]);
     }
 
-    // limpa formulário
-    setDescription("");
-    setAmount("");
-    setType("expense");
-    setCategory("Alimentação");
-    setEditingId(null);
+    resetForm();
   };
 
   const handleDeleteEntry = (id: string) => {
@@ -161,9 +343,26 @@ const App: React.FC = () => {
   const handleEditStart = (entry: FinanceEntry) => {
     setErrorMessage(null);
     setDescription(entry.description);
-    setCategory(entry.category);
     setType(entry.type);
-    // valor em reais com vírgula, mantendo separador de milhar
+
+    if (entry.type === "expense") {
+      const exists = Object.prototype.hasOwnProperty.call(
+        expenseCategories,
+        entry.category
+      );
+      setCategory(exists ? entry.category : DEFAULT_EXPENSE_CATEGORY);
+      setSubcategory(entry.subcategory || "");
+      setPaymentMethod(entry.paymentMethod || "");
+      setReceivingMethod("");
+    } else {
+      // income
+      const exists = incomeCategories.includes(entry.category);
+      setCategory(exists ? entry.category : incomeCategories[0]);
+      setSubcategory("");
+      setPaymentMethod("");
+      setReceivingMethod(entry.receivingMethod || "");
+    }
+
     const formatted = entry.amount.toLocaleString("pt-BR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
@@ -181,7 +380,8 @@ const App: React.FC = () => {
   };
 
   const isSameMonth = (date: Date, ref: Date) =>
-    date.getMonth() === ref.getMonth() && date.getFullYear() === ref.getFullYear();
+    date.getMonth() === ref.getMonth() &&
+    date.getFullYear() === ref.getFullYear();
 
   const filteredEntries = entries.filter((entry) =>
     isSameMonth(new Date(entry.createdAt), currentMonth)
@@ -213,6 +413,11 @@ const App: React.FC = () => {
 
   const now = new Date();
   const showingCurrentMonth = isSameMonth(currentMonth, now);
+
+  const currentExpenseSubcategories =
+    type === "expense" && expenseCategories[category]
+      ? expenseCategories[category]
+      : [];
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -349,23 +554,9 @@ const App: React.FC = () => {
                   onChangeText={handleAmountChange}
                 />
               </View>
-              <View style={[styles.fieldGroup, styles.rowHalf]}>
-                <Text style={styles.inputLabel}>Categoria</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={
-                    type === "income" ? "Renda fixa, extra..." : "Alimentação..."
-                  }
-                  placeholderTextColor="#6b7280"
-                  value={category}
-                  onChangeText={(text) => {
-                    setErrorMessage(null);
-                    setCategory(text);
-                  }}
-                />
-              </View>
             </View>
 
+            {/* Seleção de tipo */}
             <View style={styles.toggleRow}>
               <TouchableOpacity
                 style={[
@@ -375,6 +566,10 @@ const App: React.FC = () => {
                 onPress={() => {
                   setErrorMessage(null);
                   setType("expense");
+                  setCategory(DEFAULT_EXPENSE_CATEGORY);
+                  setSubcategory("");
+                  setPaymentMethod("");
+                  setReceivingMethod("");
                 }}
               >
                 <Text
@@ -394,6 +589,10 @@ const App: React.FC = () => {
                 onPress={() => {
                   setErrorMessage(null);
                   setType("income");
+                  setCategory(incomeCategories[0]);
+                  setSubcategory("");
+                  setPaymentMethod("");
+                  setReceivingMethod("");
                 }}
               >
                 <Text
@@ -406,6 +605,164 @@ const App: React.FC = () => {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Seletores de categoria, subcategoria e formas */}
+            {type === "expense" ? (
+              <>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.inputLabel}>Categoria (despesa)</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    {Object.keys(expenseCategories).map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.chip,
+                          category === cat && styles.chipActive,
+                        ]}
+                        onPress={() => {
+                          setCategory(cat);
+                          setSubcategory("");
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            category === cat && styles.chipTextActive,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                {currentExpenseSubcategories.length > 0 && (
+                  <View style={styles.fieldGroup}>
+                    <Text style={styles.inputLabel}>Subcategoria</Text>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.chipRow}
+                    >
+                      {currentExpenseSubcategories.map((sub) => (
+                        <TouchableOpacity
+                          key={sub}
+                          style={[
+                            styles.chipSmall,
+                            subcategory === sub && styles.chipActive,
+                          ]}
+                          onPress={() => setSubcategory(sub)}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              subcategory === sub && styles.chipTextActive,
+                            ]}
+                          >
+                            {sub}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.inputLabel}>Forma de pagamento</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    {paymentMethods.map((method) => (
+                      <TouchableOpacity
+                        key={method}
+                        style={[
+                          styles.chip,
+                          paymentMethod === method && styles.chipActive,
+                        ]}
+                        onPress={() => setPaymentMethod(method)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            paymentMethod === method && styles.chipTextActive,
+                          ]}
+                        >
+                          {method}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            ) : (
+              <>
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.inputLabel}>Categoria (receita)</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    {incomeCategories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat}
+                        style={[
+                          styles.chip,
+                          category === cat && styles.chipActive,
+                        ]}
+                        onPress={() => setCategory(cat)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            category === cat && styles.chipTextActive,
+                          ]}
+                        >
+                          {cat}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View style={styles.fieldGroup}>
+                  <Text style={styles.inputLabel}>Forma de recebimento</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                  >
+                    {receivingMethods.map((method) => (
+                      <TouchableOpacity
+                        key={method}
+                        style={[
+                          styles.chip,
+                          receivingMethod === method && styles.chipActive,
+                        ]}
+                        onPress={() => setReceivingMethod(method)}
+                      >
+                        <Text
+                          style={[
+                            styles.chipText,
+                            receivingMethod === method &&
+                              styles.chipTextActive,
+                          ]}
+                        >
+                          {method}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </>
+            )}
 
             <TouchableOpacity style={styles.primaryButton} onPress={handleSave}>
               <Text style={styles.primaryButtonText}>
@@ -437,10 +794,23 @@ const App: React.FC = () => {
                       {entry.description}
                     </Text>
                     <View style={styles.entryMetaRow}>
-                      <Text style={styles.entryCategory}>{entry.category}</Text>
+                      <Text style={styles.entryCategory}>
+                        {entry.category}
+                        {entry.subcategory ? ` • ${entry.subcategory}` : ""}
+                      </Text>
                       <Text style={styles.entryType}>
                         {entry.type === "income" ? "Receita" : "Despesa"}
                       </Text>
+                      {entry.type === "expense" && entry.paymentMethod && (
+                        <Text style={styles.entryType}>
+                          {entry.paymentMethod}
+                        </Text>
+                      )}
+                      {entry.type === "income" && entry.receivingMethod && (
+                        <Text style={styles.entryType}>
+                          {entry.receivingMethod}
+                        </Text>
+                      )}
                     </View>
                   </View>
                   <View style={styles.entryAmountBlock}>
@@ -719,6 +1089,40 @@ const styles = StyleSheet.create({
   toggleButtonTextActive: {
     color: "#f9fafb",
   },
+  chipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 4,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    backgroundColor: "#020617",
+  },
+  chipSmall: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#1f2937",
+    backgroundColor: "#020617",
+  },
+  chipActive: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  chipText: {
+    fontSize: 12,
+    color: "#9ca3af",
+  },
+  chipTextActive: {
+    color: "#f9fafb",
+    fontWeight: "600",
+  },
   primaryButton: {
     marginTop: 8,
     height: 46,
@@ -765,7 +1169,8 @@ const styles = StyleSheet.create({
   },
   entryMetaRow: {
     flexDirection: "row",
-    gap: 8,
+    flexWrap: "wrap",
+    gap: 6,
     marginTop: 2,
   },
   entryCategory: {
