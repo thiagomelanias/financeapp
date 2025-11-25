@@ -472,22 +472,6 @@ const App: React.FC = () => {
   const totalExpense = expenses.reduce((sum, e) => sum + e.amount, 0);
   const balance = totalIncome - totalExpense;
 
-  const totalEntries = filteredEntries.length;
-  const spendingRate = totalIncome > 0 ? totalExpense / totalIncome : null;
-
-  let topExpenseCategory: string | null = null;
-  if (expenses.length > 0) {
-    const categoryTotals: Record<string, number> = {};
-    for (const exp of expenses) {
-      categoryTotals[exp.category] =
-        (categoryTotals[exp.category] || 0) + exp.amount;
-    }
-    const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
-    if (sorted.length > 0) {
-      topExpenseCategory = sorted[0][0];
-    }
-  }
-
   const currencyFormatter = new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
@@ -552,7 +536,7 @@ const App: React.FC = () => {
           showsVerticalScrollIndicator={false}
         >
           {/* Consolidated balance card */}
-          <View style={[styles.cardLarge, balance >= 0 ? styles.cardPositive : styles.cardNegative]}>
+          <View style={styles.cardLarge}>
             <View style={styles.cardHeaderRow}>
               <Text style={styles.cardTitle}>Saldo consolidado</Text>
               <Text
@@ -564,19 +548,6 @@ const App: React.FC = () => {
                 {formatCurrency(balance)}
               </Text>
             </View>
-            <Text
-              style={[
-                styles.balanceStatusText,
-                balance >= 0
-                  ? styles.balanceStatusPositive
-                  : styles.balanceStatusNegative,
-              ]}
-            >
-              {balance >= 0
-                ? "Você está no azul neste mês."
-                : "Atenção: saldo no vermelho neste mês."}
-            </Text>
-
 
             <View style={styles.row}>
               <View style={styles.subCard}>
@@ -626,38 +597,9 @@ const App: React.FC = () => {
                 </Text>
               </View>
             </View>
-
-            <View style={styles.miniIndicatorsRow}>
-              <View style={styles.miniIndicator}>
-                <Text style={styles.miniIndicatorLabel}>Lançamentos no mês</Text>
-                <Text style={styles.miniIndicatorValue}>{totalEntries}</Text>
-              </View>
-
-              {totalIncome > 0 && (
-                <View style={styles.miniIndicator}>
-                  <Text style={styles.miniIndicatorLabel}>Renda já gasta</Text>
-                  <Text style={styles.miniIndicatorValue}>
-                    {((spendingRate ?? 0) * 100).toFixed(0)}%
-                  </Text>
-                </View>
-              )}
-
-              {topExpenseCategory && (
-                <View style={styles.miniIndicator}>
-                  <Text style={styles.miniIndicatorLabel}>Maior despesa em</Text>
-                  <Text
-                    style={styles.miniIndicatorValue}
-                    numberOfLines={1}
-                  >
-                    {topExpenseCategory}
-                  </Text>
-                </View>
-              )}
-            </View>
           </View>
 
           {/* New entry */}
-
           <View style={styles.cardLarge}>
             <Text style={styles.sectionTitle}>Novo lançamento</Text>
             <Text style={styles.sectionSubtitle}>
@@ -962,15 +904,6 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
   },
-
-  cardPositive: {
-    borderColor: "#16a34a",
-    shadowColor: "#16a34a",
-  },
-  cardNegative: {
-    borderColor: "#b91c1c",
-    shadowColor: "#b91c1c",
-  },
   cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -991,18 +924,6 @@ const styles = StyleSheet.create({
   },
   balanceNegative: {
     color: "#f97373",
-  },
-
-  balanceStatusText: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  balanceStatusPositive: {
-    color: "#4ade80",
-  },
-  balanceStatusNegative: {
-    color: "#fca5a5",
   },
   row: {
     flexDirection: "row",
@@ -1073,31 +994,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 11,
     color: "#6b7280",
-  },
-
-  miniIndicatorsRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 10,
-  },
-  miniIndicator: {
-    flex: 1,
-    borderRadius: 999,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: "#111827",
-    backgroundColor: "#020617",
-  },
-  miniIndicatorLabel: {
-    fontSize: 10,
-    color: "#9ca3af",
-  },
-  miniIndicatorValue: {
-    marginTop: 2,
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#e5e7eb",
   },
   sectionTitle: {
     fontSize: 16,
