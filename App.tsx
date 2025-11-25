@@ -210,7 +210,12 @@ const Dropdown: React.FC<DropdownProps> = ({
   return (
     <View style={styles.fieldGroup}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <View>
+      <View
+        style={[
+          styles.dropdownContainer,
+          open && styles.dropdownContainerOpen,
+        ]}
+      >
         <TouchableOpacity
           style={styles.selectField}
           onPress={() => setOpen(!open)}
@@ -235,7 +240,10 @@ const Dropdown: React.FC<DropdownProps> = ({
               {options.map((option) => (
                 <TouchableOpacity
                   key={option}
-                  style={styles.selectOption}
+                  style={[
+                    styles.selectOption,
+                    option === value && styles.selectOptionSelected,
+                  ]}
                   onPress={() => {
                     onChange(option);
                     setOpen(false);
@@ -1051,6 +1059,13 @@ const styles = StyleSheet.create({
   toggleButtonTextActive: {
     color: "#f9fafb",
   },
+  dropdownContainer: {
+    position: "relative",
+    zIndex: 10,
+  },
+  dropdownContainerOpen: {
+    zIndex: 20,
+  },
   selectField: {
     height: 42,
     borderRadius: 999,
@@ -1088,6 +1103,9 @@ const styles = StyleSheet.create({
   selectOption: {
     paddingHorizontal: 16,
     paddingVertical: 10,
+  },
+  selectOptionSelected: {
+    backgroundColor: "#0b1120",
   },
   selectOptionText: {
     fontSize: 14,
