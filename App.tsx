@@ -189,6 +189,76 @@ const receivingMethods: string[] = [
 
 const DEFAULT_EXPENSE_CATEGORY = "Alimentação";
 
+interface DropdownProps {
+  label: string;
+  value: string;
+  placeholder?: string;
+  options: string[];
+  onChange: (value: string) => void;
+}
+
+const Dropdown: React.FC<DropdownProps> = ({
+  label,
+  value,
+  placeholder,
+  options,
+  onChange,
+}) => {
+  const [open, setOpen] = useState(false);
+  const displayLabel = value || placeholder || "Selecione";
+
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.inputLabel}>{label}</Text>
+      <View>
+        <TouchableOpacity
+          style={styles.selectField}
+          onPress={() => setOpen(!open)}
+        >
+          <Text
+            style={[
+              styles.selectFieldText,
+              !value && styles.selectFieldTextPlaceholder,
+            ]}
+          >
+            {displayLabel}
+          </Text>
+          <Text style={styles.selectFieldIcon}>{open ? "▲" : "▼"}</Text>
+        </TouchableOpacity>
+        {open && (
+          <View style={styles.selectDropdown}>
+            <ScrollView
+              style={{ maxHeight: 200 }}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={true}
+            >
+              {options.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={styles.selectOption}
+                  onPress={() => {
+                    onChange(option);
+                    setOpen(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.selectOptionText,
+                      option === value && styles.selectOptionTextSelected,
+                    ]}
+                  >
+                    {option}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+};
+
 const App: React.FC = () => {
   const [entries, setEntries] = useState<FinanceEntry[]>([]);
   const [description, setDescription] = useState("");
@@ -609,158 +679,50 @@ const App: React.FC = () => {
             {/* Seletores de categoria, subcategoria e formas */}
             {type === "expense" ? (
               <>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>Categoria (despesa)</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {Object.keys(expenseCategories).map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.chip,
-                          category === cat && styles.chipActive,
-                        ]}
-                        onPress={() => {
-                          setCategory(cat);
-                          setSubcategory("");
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            category === cat && styles.chipTextActive,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
+                <Dropdown
+                  label="Categoria (despesa)"
+                  value={category}
+                  options={Object.keys(expenseCategories)}
+                  onChange={(cat) => {
+                    setCategory(cat);
+                    setSubcategory("");
+                  }}
+                />
 
                 {currentExpenseSubcategories.length > 0 && (
-                  <View style={styles.fieldGroup}>
-                    <Text style={styles.inputLabel}>Subcategoria</Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={styles.chipRow}
-                    >
-                      {currentExpenseSubcategories.map((sub) => (
-                        <TouchableOpacity
-                          key={sub}
-                          style={[
-                            styles.chipSmall,
-                            subcategory === sub && styles.chipActive,
-                          ]}
-                          onPress={() => setSubcategory(sub)}
-                        >
-                          <Text
-                            style={[
-                              styles.chipText,
-                              subcategory === sub && styles.chipTextActive,
-                            ]}
-                          >
-                            {sub}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
+                  <Dropdown
+                    label="Subcategoria"
+                    value={subcategory}
+                    placeholder="Selecione a subcategoria"
+                    options={currentExpenseSubcategories}
+                    onChange={setSubcategory}
+                  />
                 )}
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>Forma de pagamento</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {paymentMethods.map((method) => (
-                      <TouchableOpacity
-                        key={method}
-                        style={[
-                          styles.chip,
-                          paymentMethod === method && styles.chipActive,
-                        ]}
-                        onPress={() => setPaymentMethod(method)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            paymentMethod === method && styles.chipTextActive,
-                          ]}
-                        >
-                          {method}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
+                <Dropdown
+                  label="Forma de pagamento"
+                  value={paymentMethod}
+                  placeholder="Selecione a forma de pagamento"
+                  options={paymentMethods}
+                  onChange={setPaymentMethod}
+                />
               </>
             ) : (
               <>
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>Categoria (receita)</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {incomeCategories.map((cat) => (
-                      <TouchableOpacity
-                        key={cat}
-                        style={[
-                          styles.chip,
-                          category === cat && styles.chipActive,
-                        ]}
-                        onPress={() => setCategory(cat)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            category === cat && styles.chipTextActive,
-                          ]}
-                        >
-                          {cat}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
+                <Dropdown
+                  label="Categoria (receita)"
+                  value={category}
+                  options={incomeCategories}
+                  onChange={setCategory}
+                />
 
-                <View style={styles.fieldGroup}>
-                  <Text style={styles.inputLabel}>Forma de recebimento</Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
-                  >
-                    {receivingMethods.map((method) => (
-                      <TouchableOpacity
-                        key={method}
-                        style={[
-                          styles.chip,
-                          receivingMethod === method && styles.chipActive,
-                        ]}
-                        onPress={() => setReceivingMethod(method)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            receivingMethod === method &&
-                              styles.chipTextActive,
-                          ]}
-                        >
-                          {method}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
+                <Dropdown
+                  label="Forma de recebimento"
+                  value={receivingMethod}
+                  placeholder="Selecione a forma de recebimento"
+                  options={receivingMethods}
+                  onChange={setReceivingMethod}
+                />
               </>
             )}
 
@@ -1089,38 +1051,50 @@ const styles = StyleSheet.create({
   toggleButtonTextActive: {
     color: "#f9fafb",
   },
-  chipRow: {
+  selectField: {
+    height: 42,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#111827",
+    backgroundColor: "#020617",
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingVertical: 4,
+    justifyContent: "space-between",
   },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#020617",
+  selectFieldText: {
+    fontSize: 14,
+    color: "#e5e7eb",
   },
-  chipSmall: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#020617",
+  selectFieldTextPlaceholder: {
+    color: "#6b7280",
   },
-  chipActive: {
-    backgroundColor: "#2563eb",
-    borderColor: "#2563eb",
-  },
-  chipText: {
+  selectFieldIcon: {
     fontSize: 12,
     color: "#9ca3af",
   },
-  chipTextActive: {
-    color: "#f9fafb",
+  selectDropdown: {
+    marginTop: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#111827",
+    backgroundColor: "#020617",
+    shadowColor: "#000",
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    overflow: "hidden",
+  },
+  selectOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  selectOptionText: {
+    fontSize: 14,
+    color: "#e5e7eb",
+  },
+  selectOptionTextSelected: {
+    color: "#60a5fa",
     fontWeight: "600",
   },
   primaryButton: {
